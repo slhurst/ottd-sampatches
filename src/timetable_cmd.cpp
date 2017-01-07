@@ -18,6 +18,7 @@
 #include "cmd_helper.h"
 #include "settings_type.h"
 #include "core/sort_func.hpp"
+#include "settings_type.h"
 
 #include "table/strings.h"
 
@@ -410,9 +411,9 @@ void UpdateVehicleTimetable(Vehicle *v, bool travelling)
 
 		if (v->timetable_start != 0) {
 #if WALLCLOCK_NETWORK_COMPATIBLE
-			v->lateness_counter = (_date - v->timetable_start) * DAY_TICKS + _date_fract;
+			v->lateness_counter = (_date - v->timetable_start) * DAY_TICKS * _settings_game.economy.day_length_factor + _date_fract + _tick_skip_counter;
 #else
-			v->lateness_counter = (_date * DAY_TICKS) + _date_fract - v->timetable_start;
+			v->lateness_counter = (_date * DAY_TICKS * _settings_game.economy.day_length_factor) + _date_fract - v->timetable_start + _tick_skip_counter;
 #endif
 			v->timetable_start = 0;
 		}
