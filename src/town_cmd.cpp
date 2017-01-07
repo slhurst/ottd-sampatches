@@ -2750,6 +2750,28 @@ CommandCost CmdDeleteTown(TileIndex tile, DoCommandFlag flags, uint32 p1, uint32
 }
 
 /**
+ * Delete a town (scenario editor or worldgen only).
+ * @param tile Unused.
+ * @param flags Type of operation.
+ * @param p1 Town ID to toggle.
+ * @param p2 Unused.
+ * @param text Unused.
+ * @return Empty cost or an error.
+ */
+CommandCost CmdToggleCity(TileIndex tile, DoCommandFlag flags, uint32 p1, uint32 p2, const char *text)
+{
+	if (_game_mode != GM_EDITOR && !_generating_world) return CMD_ERROR;
+	Town *t = Town::GetIfValid(p1);
+	if (t == NULL) return CMD_ERROR;
+
+	t->larger_town = p2;
+	//InvalidateWindowData(WC_TOWN_VIEW, p1);
+	SetWindowDirty(WC_TOWN_VIEW, p1);
+
+	return CommandCost();
+}
+
+/**
  * Factor in the cost of each town action.
  * @see TownActions
  */
@@ -3474,4 +3496,4 @@ void ResetHouses()
 
 	/* Reset any overrides that have been set. */
 	_house_mngr.ResetOverride();
-}
+} 

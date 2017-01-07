@@ -41,6 +41,7 @@ enum TownViewWidgets {
 	WID_TV_CHANGE_NAME,    ///< Change the name of this town.
 	WID_TV_EXPAND,         ///< Expand this town (scenario editor only).
 	WID_TV_DELETE,         ///< Delete this town (scenario editor only).
+	WID_TV_TOGGLE_CITY,    ///< Toggle this town's city status (scenario editor only).
 };
 
 /** Widgets of the #FoundTownWindow class. */

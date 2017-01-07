@@ -3004,6 +3004,9 @@ STR_TOWN_VIEW_EXPAND_BUTTON                                     :{BLACK}Expand
 STR_TOWN_VIEW_EXPAND_TOOLTIP                                    :{BLACK}Increase size of town
 STR_TOWN_VIEW_DELETE_BUTTON                                     :{BLACK}Delete
 STR_TOWN_VIEW_DELETE_TOOLTIP                                    :{BLACK}Delete this town completely
+STR_TOWN_VIEW_TOGGLE_CITY_BUTTON                                :{BLACK}Toggle city
+STR_TOWN_VIEW_TOGGLE_CITY_TOOLTIP                               :{BLACK}Toggle whether this town is a city or not
+
 
 STR_TOWN_VIEW_RENAME_TOWN_BUTTON                                :Rename Town
 
