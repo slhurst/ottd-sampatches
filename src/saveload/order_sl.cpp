@@ -210,6 +210,9 @@ const SaveLoad *GetOrderListDescription()
 {
 	static const SaveLoad _orderlist_desc[] = {
 		SLE_REF(OrderList, first,              REF_ORDER),
+		SLE_CONDNULL(SLE_BOOL,   201, 201),
+		SLE_CONDNULL(SLE_BOOL,   201, 201),
+		SLE_CONDNULL(SLE_UINT16, 201, 201),
 		SLE_END()
 	};
 
