@@ -1512,6 +1512,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\..\src\overlay.h"
+				>
+			</File>
+			<File
+				RelativePath=".\..\src\overlay_cmd.h"
+				>
+			</File>
+			<File
 				RelativePath=".\..\src\pbs.h"
 				>
 			</File>
@@ -2561,6 +2569,10 @@
 			</File>
 			<File
 				RelativePath=".\..\src\order_cmd.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\..\src\overlay_cmd.cpp"
 				>
 			</File>
 			<File
