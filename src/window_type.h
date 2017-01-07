@@ -670,6 +670,11 @@ enum WindowClass {
 	WC_SPRITE_ALIGNER,
 
 	/**
+     * Departure boards
+     */
+	WC_DEPARTURES_BOARD,
+
+	/**
 	 * Linkgraph legend; %Window numbers:
 	 *   - 0 = #LinkGraphWidgets
 	 */

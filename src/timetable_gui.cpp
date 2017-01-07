@@ -47,13 +47,28 @@ struct TimetableArrivalDeparture {
 void SetTimetableParams(int param1, int param2, Ticks ticks)
 {
 	if (_settings_client.gui.timetable_in_ticks) {
-		SetDParam(param1, STR_TIMETABLE_TICKS);
 		SetDParam(param2, ticks);
+		SetDParam(param1, STR_TIMETABLE_TICKS);
+	} else if (_settings_client.gui.time_in_minutes) {
+		SetDParam(param2, ticks / DATE_UNIT_SIZE);
+		SetDParam(param1, STR_TIMETABLE_MINUTES);
 	} else {
+		SetDParam(param2, ticks / DATE_UNIT_SIZE);
 		SetDParam(param1, STR_TIMETABLE_DAYS);
-		SetDParam(param2, ticks / DAY_TICKS);
 	}
 }
+
+/**
+ * Sets the arrival or departure string and parameters.
+ * @param param1 the first DParam to fill
+ * @param param2 the second DParam to fill
+ * @param ticks  the number of ticks to 'draw'
+ */
+/*static void SetArrivalDepartParams(int param1, int param2, Ticks ticks)
+{
+	SetDParam(param1, STR_JUST_DATE_WALLCLOCK_TINY);
+	SetDParam(param2, ((DateTicks)_date * DAY_TICKS) + ticks);
+}*/
 
 /**
  * Check whether it is possible to determine how long the order takes.
@@ -142,9 +157,13 @@ static void FillTimetableArrivalDepartureTable(const Vehicle *v, VehicleOrderID 
  * @param window the window related to the setting of the date
  * @param date the actually chosen date
  */
-static void ChangeTimetableStartCallback(const Window *w, Date date)
+static void ChangeTimetableStartCallback(const Window *w, DateTicks date)
 {
-	DoCommandP(0, w->window_number, date, CMD_SET_TIMETABLE_START | CMD_MSG(STR_ERROR_CAN_T_TIMETABLE_VEHICLE));
+#if WALLCLOCK_NETWORK_COMPATIBLE
+	DoCommandP(0, w->window_number, (Date)(date / DAY_TICKS), CMD_SET_TIMETABLE_START | CMD_MSG(STR_ERROR_CAN_T_TIMETABLE_VEHICLE));
+#else
+	DoCommandP(0, w->window_number, (Ticks)(date - (((DateTicks)_date * DAY_TICKS) + _date_fract)), CMD_SET_TIMETABLE_START | CMD_MSG(STR_ERROR_CAN_T_TIMETABLE_VEHICLE));
+#endif
 }
 
 
@@ -154,6 +173,7 @@ struct TimetableWindow : Window {
 	bool show_expected;     ///< Whether we show expected arrival or scheduled
 	uint deparr_time_width; ///< The width of the departure/arrival time
 	uint deparr_abbr_width; ///< The width of the departure/arrival abbreviation
+    int clicked_widget;     ///< The widget that was clicked (used to determine what to do in OnQueryTextFinished)
 	Scrollbar *vscroll;
 	bool query_is_speed_query; ///< The currently open query window is a speed query and not a time query.
 
@@ -193,8 +213,8 @@ struct TimetableWindow : Window {
 	{
 		switch (widget) {
 			case WID_VT_ARRIVAL_DEPARTURE_PANEL:
-				SetDParamMaxValue(0, MAX_YEAR * DAYS_IN_YEAR, 0, FS_SMALL);
-				this->deparr_time_width = GetStringBoundingBox(STR_JUST_DATE_TINY).width;
+				SetDParamMaxValue(0, _settings_client.gui.time_in_minutes ? 0 : MAX_YEAR * DAYS_IN_YEAR, 0, FS_SMALL);
+				this->deparr_time_width = GetStringBoundingBox(STR_JUST_DATE_WALLCLOCK_TINY).width + 4;
 				this->deparr_abbr_width = max(GetStringBoundingBox(STR_TIMETABLE_ARRIVAL_ABBREVIATION).width, GetStringBoundingBox(STR_TIMETABLE_DEPARTURE_ABBREVIATION).width);
 				size->width = WD_FRAMERECT_LEFT + this->deparr_abbr_width + 10 + this->deparr_time_width + WD_FRAMERECT_RIGHT;
 				/* FALL THROUGH */
@@ -433,7 +453,7 @@ struct TimetableWindow : Window {
 
 				int y = r.top + WD_FRAMERECT_TOP;
 
-				bool show_late = this->show_expected && v->lateness_counter > DAY_TICKS;
+				bool show_late = this->show_expected && v->lateness_counter > DATE_UNIT_SIZE;
 				Ticks offset = show_late ? 0 : -v->lateness_counter;
 
 				bool rtl = _current_text_dir == TD_RTL;
@@ -484,14 +504,18 @@ struct TimetableWindow : Window {
 				if (v->timetable_start != 0) {
 					/* We are running towards the first station so we can start the
 					 * timetable at the given time. */
-					SetDParam(0, STR_JUST_DATE_TINY);
+					SetDParam(0, STR_JUST_DATE_WALLCLOCK_TINY);
+#if WALLCLOCK_NETWORK_COMPATIBLE
+					SetDParam(1, v->timetable_start * DAY_TICKS);
+#else
 					SetDParam(1, v->timetable_start);
+#endif
 					DrawString(r.left + WD_FRAMERECT_LEFT, r.right - WD_FRAMERECT_RIGHT, y, STR_TIMETABLE_STATUS_START_AT);
 				} else if (!HasBit(v->vehicle_flags, VF_TIMETABLE_STARTED)) {
 					/* We aren't running on a timetable yet, so how can we be "on time"
 					 * when we aren't even "on service"/"on duty"? */
 					DrawString(r.left + WD_FRAMERECT_LEFT, r.right - WD_FRAMERECT_RIGHT, y, STR_TIMETABLE_STATUS_NOT_STARTED);
-				} else if (v->lateness_counter == 0 || (!_settings_client.gui.timetable_in_ticks && v->lateness_counter / DAY_TICKS == 0)) {
+				} else if (v->lateness_counter == 0 || (!_settings_client.gui.timetable_in_ticks && v->lateness_counter / DATE_UNIT_SIZE == 0)) {
 					DrawString(r.left + WD_FRAMERECT_LEFT, r.right - WD_FRAMERECT_RIGHT, y, STR_TIMETABLE_STATUS_ON_TIME);
 				} else {
 					SetTimetableParams(0, 1, abs(v->lateness_counter));
@@ -516,6 +540,8 @@ struct TimetableWindow : Window {
 	{
 		const Vehicle *v = this->vehicle;
 
+        this->clicked_widget = widget;
+
 		switch (widget) {
 			case WID_VT_ORDER_VIEW: // Order view button
 				ShowOrdersWindow(v);
@@ -530,7 +556,18 @@ struct TimetableWindow : Window {
 			}
 
 			case WID_VT_START_DATE: // Change the date that the timetable starts.
-				ShowSetDateWindow(this, v->index | (v->orders.list->IsCompleteTimetable() && _ctrl_pressed ? 1U << 20 : 0), _date, _cur_year, _cur_year + 15, ChangeTimetableStartCallback);
+                if (_settings_client.gui.time_in_minutes && _settings_client.gui.timetable_start_text_entry) {
+                    StringID str = STR_JUST_INT;
+                    uint64 time = ((DateTicks)_date * DAY_TICKS) + _date_fract;
+                    time /= _settings_client.gui.ticks_per_minute;
+                    time += _settings_client.gui.clock_offset;
+                    time %= 24*60;
+                    time = (time % 60) + (((time / 60) % 24) * 100);
+                    SetDParam(0, time);
+                    ShowQueryString(str, STR_TIMETABLE_STARTING_DATE, 31, this, CS_NUMERAL, QSF_ACCEPT_UNCHANGED);
+                } else {
+                    ShowSetDateWindow(this, v->index | (v->orders.list->IsCompleteTimetable() && _ctrl_pressed ? 1U << 20 : 0), ((DateTicks)_date * DAY_TICKS) + _date_fract, _cur_year, _cur_year + 15, ChangeTimetableStartCallback);
+                }
 				break;
 
 			case WID_VT_CHANGE_TIME: { // "Wait For" button.
@@ -544,7 +581,7 @@ struct TimetableWindow : Window {
 
 				if (order != NULL) {
 					uint time = (selected % 2 == 1) ? order->GetTravelTime() : order->GetWaitTime();
-					if (!_settings_client.gui.timetable_in_ticks) time /= DAY_TICKS;
+					if (!_settings_client.gui.timetable_in_ticks) time /= DATE_UNIT_SIZE;
 
 					if (time != 0) {
 						SetDParam(0, time);
@@ -619,18 +656,42 @@ struct TimetableWindow : Window {
 
 		const Vehicle *v = this->vehicle;
 
+        uint64 val = StrEmpty(str) ? 0 : strtoul(str, NULL, 10);
+
+        switch (this->clicked_widget) {
+            default: NOT_REACHED();
+
+            case WID_VT_CHANGE_SPEED:
+            case WID_VT_CHANGE_TIME: {
 		uint32 p1 = PackTimetableArgs(v, this->sel_index, this->query_is_speed_query);
 
 		uint64 val = StrEmpty(str) ? 0 : strtoul(str, NULL, 10);
 		if (this->query_is_speed_query) {
 			val = ConvertDisplaySpeedToKmhishSpeed(val);
 		} else {
-			if (!_settings_client.gui.timetable_in_ticks) val *= DAY_TICKS;
+                    if (!_settings_client.gui.timetable_in_ticks) val *= DATE_UNIT_SIZE;
 		}
 
 		uint32 p2 = minu(val, UINT16_MAX);
 
 		DoCommandP(0, p1, p2, CMD_CHANGE_TIMETABLE | CMD_MSG(STR_ERROR_CAN_T_TIMETABLE_VEHICLE));
+                break;
+	}
+
+            case WID_VT_START_DATE: {
+                if (val > 0) {
+                    uint minutes = (val % 100) % 60;
+                    uint hours = (val / 100) % 24;
+                    val = MINUTES_DATE(MINUTES_DAY(CURRENT_MINUTE), hours, minutes);
+                    val -= _settings_client.gui.clock_offset;
+
+                    if (val < (CURRENT_MINUTE - 60)) val += 60 * 24;
+                    val *= DATE_UNIT_SIZE;
+                    ChangeTimetableStartCallback(this, val);
+                }
+                break;
+            }
+        }
 	}
 
 	virtual void OnResize()

@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: departures_func.h $ */
 
 /*
  * This file is part of OpenTTD.
@@ -7,21 +7,15 @@
  * See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with OpenTTD. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/** @file date_gui.h Functions related to the graphical selection of a date. */
+/** @file departures_func.h Functions related to departures. */
 
-#ifndef DATE_GUI_H
-#define DATE_GUI_H
+#ifndef DEPARTURES_FUNC_H
+#define DEPARTURES_FUNC_H
 
-#include "date_type.h"
-#include "window_type.h"
+#include "station_base.h"
+#include "core/smallvec_type.hpp"
+#include "departures_type.h"
 
-/**
- * Callback for when a date has been chosen
- * @param w the window that sends the callback
- * @param date the date that has been chosen
- */
-typedef void SetDateCallback(const Window *w, DateTicks date);
+DepartureList* MakeDepartureList(StationID station, bool show_vehicle_types[4], DepartureType type = D_DEPARTURE, bool show_vehicles_via = false);
 
-void ShowSetDateWindow(Window *parent, int window_number, DateTicks initial_date, Year min_year, Year max_year, SetDateCallback *callback);
-
-#endif /* DATE_GUI_H */
+#endif /* DEPARTURES_FUNC_H */

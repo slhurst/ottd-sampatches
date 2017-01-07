@@ -1536,12 +1536,37 @@ static SettingsContainer &GetSettingsTree()
 				construction->Add(new SettingEntry("gui.disable_unsuitable_building"));
 			}
 
+            SettingsPage *departureboards = interface->Add(new SettingsPage(STR_CONFIG_SETTING_DEPARTUREBOARDS));
+            {
+                departureboards->Add(new SettingEntry("gui.max_departures"));
+                departureboards->Add(new SettingEntry("gui.max_departure_time"));
+                departureboards->Add(new SettingEntry("gui.departure_calc_frequency"));
+                departureboards->Add(new SettingEntry("gui.departure_show_vehicle"));
+                departureboards->Add(new SettingEntry("gui.departure_show_group"));
+                departureboards->Add(new SettingEntry("gui.departure_show_company"));
+                departureboards->Add(new SettingEntry("gui.departure_show_vehicle_type"));
+                departureboards->Add(new SettingEntry("gui.departure_show_vehicle_color"));
+                departureboards->Add(new SettingEntry("gui.departure_larger_font"));
+                departureboards->Add(new SettingEntry("gui.departure_destination_type"));
+                departureboards->Add(new SettingEntry("gui.departure_show_both"));
+                departureboards->Add(new SettingEntry("gui.departure_only_passengers"));
+                departureboards->Add(new SettingEntry("gui.departure_smart_terminus"));
+                departureboards->Add(new SettingEntry("gui.departure_conditionals"));
+                departureboards->Add(new SettingEntry("gui.departure_show_all_stops"));
+                departureboards->Add(new SettingEntry("gui.departure_merge_identical"));
+            }
+
 			interface->Add(new SettingEntry("gui.autosave"));
 			interface->Add(new SettingEntry("gui.toolbar_pos"));
 			interface->Add(new SettingEntry("gui.statusbar_pos"));
 			interface->Add(new SettingEntry("gui.prefer_teamchat"));
 			interface->Add(new SettingEntry("gui.advanced_vehicle_list"));
 			interface->Add(new SettingEntry("gui.timetable_in_ticks"));
+            interface->Add(new SettingEntry("gui.time_in_minutes"));
+            interface->Add(new SettingEntry("gui.timetable_start_text_entry"));
+            interface->Add(new SettingEntry("gui.ticks_per_minute"));
+            interface->Add(new SettingEntry("gui.date_with_time"));
+            interface->Add(new SettingEntry("gui.clock_offset"));
 			interface->Add(new SettingEntry("gui.timetable_arrival_departure"));
 			interface->Add(new SettingEntry("gui.expenses_layout"));
 		}
