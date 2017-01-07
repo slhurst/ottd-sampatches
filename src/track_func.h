@@ -492,6 +492,22 @@ static inline Trackdir TrackDirectionToTrackdir(Track track, Direction dir)
 }
 
 /**
+ * Maps a track to a #Direction perpendicular to the track.
+ *
+ * In case of non-x-y tracks, the turn is chosen in a way that the direction
+ * points from the track toward opposite tile half.
+ *
+ * @param track The track.
+ * @return The direction.
+ */
+static inline Direction TrackToDirAgainstTrack(Track track)
+{
+	assert(IsValidTrack(track));
+	extern const Direction _track_to_dir_against_track[TRACK_END];
+	return _track_to_dir_against_track[track];
+}
+
+/**
  * Maps a (4-way) direction to the diagonal track incidating with that diagdir
  *
  * @param diagdir The direction
@@ -691,5 +707,7 @@ static inline bool IsUphillTrackdir(Slope slope, Trackdir dir)
 	extern const TrackdirBits _uphill_trackdirs[];
 	return HasBit(_uphill_trackdirs[RemoveHalftileSlope(slope)], dir);
 }
+
+void GetSingleLineFromMultilineTrack(uint line, Track *direction, TileIndex *start_tile, TileIndex *end_tile);
 
 #endif /* TRACK_FUNC_H */

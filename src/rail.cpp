@@ -109,6 +109,11 @@ extern const Trackdir _track_direction_to_trackdir[][DIR_END] = {
 	{TRACKDIR_RIGHT_N, INVALID_TRACKDIR,  INVALID_TRACKDIR, INVALID_TRACKDIR,  TRACKDIR_RIGHT_S, INVALID_TRACKDIR,  INVALID_TRACKDIR, INVALID_TRACKDIR}
 };
 
+extern const Direction _track_to_dir_against_track[TRACK_END] = {
+	/* X       Y    UPPER  LOWER  LEFT   RIGHT */
+	DIR_SE, DIR_SW, DIR_S, DIR_N, DIR_E, DIR_W
+};
+
 extern const Trackdir _dir_to_diag_trackdir[] = {
 	TRACKDIR_X_NE, TRACKDIR_Y_SE, TRACKDIR_X_SW, TRACKDIR_Y_NW,
 };
@@ -300,4 +305,111 @@ RailType GetRailTypeByLabel(RailTypeLabel label, bool allow_alternate_labels)
 
 	/* No matching label was found, so it is invalid */
 	return INVALID_RAILTYPE;
+}
+
+/**
+ * Get coordinates of a signle rail line from a multi-line track set.
+ *
+ * @param line       Index of the line to get.
+ * @param direction  (in/out) Direction of the first line in the set / direction of the result.
+ * @param start_tile (in/out) First tile of the first line in the set / first tile of the result.
+ * @param end_tile   (in/out) Last tile of the last line in the set / last tile of the result.
+ */
+void GetSingleLineFromMultilineTrack(uint line, Track *direction, TileIndex *start_tile, TileIndex *end_tile)
+{
+	line *= TILE_SIZE;
+
+	Point start = { TileX(*start_tile) * TILE_SIZE, TileY(*start_tile) * TILE_SIZE };
+	Point end = { TileX(*end_tile) * TILE_SIZE, TileY(*end_tile) * TILE_SIZE };
+	Track dir = *direction;
+
+	if (dir == TRACK_X) {
+		start.y = end.y = (end.y >= start.y) ? start.y + line : start.y - line;
+	} else if (dir == TRACK_Y) {
+		start.x = end.x = (end.x >= start.x) ? start.x + line : start.x - line;
+	} else { // diagonal
+		/* locate map borders */
+		const int min_x = _settings_game.construction.freeform_edges ? TILE_SIZE : 0;
+		const int min_y = _settings_game.construction.freeform_edges ? TILE_SIZE : 0;
+		const int max_x = MapMaxX() * TILE_SIZE;
+		const int max_y = MapMaxY() * TILE_SIZE;
+		/* locate tile centres in digonal a/b units */
+		int start_a = (start.x + TILE_SIZE / 2) + (start.y + TILE_SIZE / 2);
+		int start_b = (start.x + TILE_SIZE / 2) - (start.y + TILE_SIZE / 2);
+		int end_a = (end.x + TILE_SIZE / 2) + (end.y + TILE_SIZE / 2);
+		int end_b = (end.x + TILE_SIZE / 2) - (end.y + TILE_SIZE / 2);
+		/* find the line */
+		if (dir == TRACK_UPPER || dir == TRACK_LOWER) { // horizontal line
+			/* find exact point on the map where the line starts (middle point of the tile
+			 * edge on which the line starts) and exact point where the line ends */
+			if (dir == TRACK_UPPER) {
+				start_a += (end_a < start_a) ? -line : line; // N-th line offset
+				start_a -= TILE_SIZE / 2; // offset form the tile centre
+			} else {
+				start_a += (end_a <= start_a) ? -line : line; // N-th line offset
+				start_a += TILE_SIZE / 2; // offset form the tile centre
+			}
+			end_a = start_a;
+			bool swapped = (start_b > end_b);
+			if (swapped) Swap(start_b, end_b);
+			start_b -= TILE_SIZE / 2; // offset form the tile centre
+			end_b += TILE_SIZE / 2; // offset form the tile centre
+
+			/* cut the line at map borders */
+			start_b = max(start_b, 2 * min_x - start_a); // NE border   x >= min_x   <=>   b >= 2 * min_x - a
+			end_b   = min(end_b,   start_a - 2 * min_y); // NW border   y >= min_y   <=>   b <= a - 2 * min_y
+			end_b   = min(end_b,   2 * max_x - start_a); // SW border   x <= max_x   <=>   b <= 2 * max_x - a
+			start_b = max(start_b, start_a - 2 * max_y); // SE border   y <= max_y   <=>   b >= a - 2 * max_y
+
+			/* shorten the line at booth sides by few "units" (by a half of a single track)
+			 * so booth ends point somewhere inside the first and the last tile */
+			start_b += TILE_SIZE / 2;
+			end_b -= TILE_SIZE / 2;
+
+			if (swapped) Swap(start_b, end_b);
+		} else { // vertical line
+			/* find exact point on the map where the line starts (middle point of the tile
+			 * edge on which the line starts) and exact point where the line ends */
+			if (dir == TRACK_RIGHT) {
+				start_b += (end_b < start_b) ? -line : line; // N-th line offset
+				start_b -= TILE_SIZE / 2; // offset form the tile centre
+			} else {
+				assert(dir == TRACK_LEFT);
+				start_b += (end_b <= start_b) ? -line : line; // N-th line offset
+				start_b += TILE_SIZE / 2; // offset form the tile centre
+			}
+			end_b = start_b;
+			bool swapped = (start_a > end_a);
+			if (swapped) Swap(start_a, end_a);
+			start_a -= TILE_SIZE / 2; // offset form the tile centre
+			end_a += TILE_SIZE / 2; // offset form the tile centre
+
+			/* cut the line at map borders */
+			start_a = max(start_a, 2 * min_x - start_b); // NE border   x >= min_x   <=>   a >= 2 * min_x - b
+			start_a = max(start_a, start_b + 2 * min_y); // NW border   y >= min_y   <=>   a >= b + 2 * min_y
+			end_a   = min(end_a,   2 * max_x - start_b); // SW border   x <= max_x   <=>   a <= 2 * man_x - b
+			end_a   = min(end_a,   start_b + 2 * max_y); // SE border   y <= max_y   <=>   a <= b + 2 * max_y
+
+			/* shorten the line at booth sides by few "units" (by a half of a single track)
+			 * so booth ends point somewhere inside the first and the last tile */
+			start_a += TILE_SIZE / 2;
+			end_a -= TILE_SIZE / 2;
+
+			if (swapped) Swap(start_a, end_a);
+		}
+		/* conver back to x/y units */
+		start.x = (start_a + start_b) >> 1;
+		start.y = (start_a - start_b) >> 1;
+		end.x = (end_a + end_b) >> 1;
+		end.y = (end_a - end_b) >> 1;
+		/* investigate the direction, it's based on the halftile we are starting at */
+		static const uint TILE_HALF_BIT = TILE_SIZE / 2;
+		dir = (dir == TRACK_UPPER || dir == TRACK_LOWER) ?
+				(start.x & TILE_HALF_BIT ? TRACK_LOWER : TRACK_UPPER) :
+				(start.x & TILE_HALF_BIT ? TRACK_LEFT : TRACK_RIGHT);
+	}
+
+	*start_tile = TileVirtXY(start.x, start.y);
+	*end_tile = TileVirtXY(end.x, end.y);
+	*direction = dir;
 }

@@ -350,9 +350,9 @@ static void BuildRailClick_Remove(Window *w)
 	}
 }
 
-static void DoRailroadTrack(int mode)
+static void DoRailroadTrack(TileIndex start, TileIndex end, int mode)
 {
-	DoCommandP(TileVirtXY(_thd.selstart.x, _thd.selstart.y), TileVirtXY(_thd.selend.x, _thd.selend.y), _cur_railtype | (mode << 4),
+	DoCommandP(start, end, _cur_railtype | (mode << 4),
 			_remove_button_clicked ?
 			CMD_REMOVE_RAILROAD_TRACK | CMD_MSG(STR_ERROR_CAN_T_REMOVE_RAILROAD_TRACK) :
 			CMD_BUILD_RAILROAD_TRACK  | CMD_MSG(STR_ERROR_CAN_T_BUILD_RAILROAD_TRACK),
@@ -361,14 +361,22 @@ static void DoRailroadTrack(int mode)
 
 static void HandleAutodirPlacement()
 {
-	int trackstat = _thd.drawstyle & HT_DIR_MASK; // 0..5
+	Track trackstat = (Track)(_thd.drawstyle & HT_DIR_MASK);
 
 	if (_thd.drawstyle & HT_RAIL) { // one tile case
 		GenericPlaceRail(TileVirtXY(_thd.selend.x, _thd.selend.y), trackstat);
 		return;
 	}
 
-	DoRailroadTrack(trackstat);
+	TileIndex drag_start = TileVirtXY(_thd.selstart.x, _thd.selstart.y);
+	TileIndex drag_end = TileVirtXY(_thd.selend.x, _thd.selend.y);
+	for (uint i = 0; i < _thd.num_tracks; i++) {
+		TileIndex start = drag_start;
+		TileIndex end = drag_end;
+		Track track = trackstat;
+		GetSingleLineFromMultilineTrack(i, &track, &start, &end);
+		DoRailroadTrack(start, end, track);
+	}
 }
 
 /**

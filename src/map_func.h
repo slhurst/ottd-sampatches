@@ -395,6 +395,24 @@ static inline DiagDirection DiagdirBetweenTiles(TileIndex tile_from, TileIndex t
 }
 
 /**
+ * Project a 2D point onto a rotated 1D axis.
+ *
+ * This function answers to qustion "how far" is a point along a given
+ * direction e.g. if you pass \c DIR_S as \e dir then the further south
+ * the point is the greater value will be returned.
+ *
+ * @param x   X coordinate of the point.
+ * @param y   Y coordinate of the point.
+ * @param dir Direction of the axis.
+ *
+ * @return The projection of the point.
+ */
+static inline int XYToRotatedCoord(int x, int y, Direction dir)
+{
+	return x * TileIndexDiffCByDir(dir).x + y * TileIndexDiffCByDir(dir).y;
+}
+
+/**
  * A callback function type for searching tiles.
  *
  * @param tile The tile to test

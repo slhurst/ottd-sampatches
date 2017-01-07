@@ -937,23 +937,73 @@ static void DrawTileSelectionRect(const TileInfo *ti, PaletteID pal)
 	DrawSelectionSprite(sel, pal, ti, 7, FOUNDATION_PART_NORMAL);
 }
 
-static bool IsPartOfAutoLine(int px, int py)
+/**
+ * Check whether a given tile has to be highlighted (#HT_LINE) and which side to highlight.
+ *
+ * @param px X coordinate of the tile, in tile "units".
+ * @param py Y coordinate of the tile, in tile "units".
+ * @return How to highlight the tile:
+ *    \li -1 to highlight nothing
+ *    \li  0 to highlight exact side (_thd.drawstyle & HT_DRAG_MASK)
+ *    \li  1 to highlight opposite side
+ *    \li  2 to highlight booth sides
+ */
+static int MatchPartOfAutoLine(int px, int py)
 {
-	px -= _thd.selstart.x;
-	py -= _thd.selstart.y;
+	if ((_thd.drawstyle & HT_DRAG_MASK) != HT_LINE) return -1;
 
-	if ((_thd.drawstyle & HT_DRAG_MASK) != HT_LINE) return false;
+	HighLightStyle dir = _thd.drawstyle & HT_DIR_MASK;
 
-	switch (_thd.drawstyle & HT_DIR_MASK) {
-		case HT_DIR_X:  return py == 0; // x direction
-		case HT_DIR_Y:  return px == 0; // y direction
-		case HT_DIR_HU: return px == -py || px == -py - 16; // horizontal upper
-		case HT_DIR_HL: return px == -py || px == -py + 16; // horizontal lower
-		case HT_DIR_VL: return px == py || px == py + 16; // vertical left
-		case HT_DIR_VR: return px == py || px == py - 16; // vertical right
-		default:
-			NOT_REACHED();
+	/* easy X/Y - just check bounds */
+	if (dir == HT_DIR_X || dir == HT_DIR_Y) {
+		if (!IsInsideBS(px, _thd.pos.x, _thd.size.x)) return -1;
+		if (!IsInsideBS(py, _thd.pos.y, _thd.size.y)) return -1;
+		return 0;
 	}
+
+	/* direction perpendicular to tracks, points from the start track toward opposite tile half */
+	Direction dir_against_track = TrackToDirAgainstTrack((Track)dir);
+	/* direction of tracks (no matter which turn, we could rotate right as well)  */
+	Direction dir_along_track = ChangeDir(dir_against_track, DIRDIFF_90LEFT);
+
+	Point start_tile = { _thd.selstart.x & ~TILE_UNIT_MASK, _thd.selstart.y & ~TILE_UNIT_MASK };
+	Point end_tile = { _thd.selend.x & ~TILE_UNIT_MASK, _thd.selend.y & ~TILE_UNIT_MASK };
+
+	/* calculate position along tracks */
+	int u       = XYToRotatedCoord(px,           py,           dir_along_track);
+	int start_u = XYToRotatedCoord(start_tile.x, start_tile.y, dir_along_track);
+	int end_u   = XYToRotatedCoord(end_tile.x,   end_tile.y,   dir_along_track);
+
+	/* find out if the test point is not too far and not too near */
+	if (!IsInRangeInclusive(start_u, end_u, u)) return -1;
+
+	/* calculate position against (perpendicular to) tracks */
+	int v       = XYToRotatedCoord(px,           py,           dir_against_track);
+	int start_v = XYToRotatedCoord(start_tile.x, start_tile.y, dir_against_track);
+	int end_v   = XYToRotatedCoord(end_tile.x,   end_tile.y,   dir_against_track);
+
+	/* Single, non-x-y track (long line) runs through two rows/columns of tiles.
+	 * In case where 'start_v <= end_v', the other row/column of the first track is
+	 * located before the start tile - we have to add an offset to include it.
+	 * Otherwise, the other row/column is behind the start tile and it will be coverd
+	 * by following lines so we need no offset.
+	 * The problem is the same in case of the last line. But haveing the exact start
+	 * position, we can use the 'number of lines' to calculate exact end. */
+	if (start_v <= end_v) {
+		start_v -= TILE_SIZE; // include the other row/collumn of the first line
+		end_v = start_v + _thd.num_tracks * TILE_SIZE;
+	} else {
+		end_v = start_v - _thd.num_tracks * TILE_SIZE;
+		Swap(start_v, end_v); // sort ascending
+	}
+	/* find out if the test point is not too far and not too near */
+	if (!IsInsideMM(v, start_v, end_v + 1)) return -1;
+
+	/* don't highlight MP_VOID tiles */
+	if (!IsInsideMM(px, _settings_game.construction.freeform_edges ? TILE_SIZE : 0, MapMaxX() * TILE_SIZE)) return -1;
+	if (!IsInsideMM(py, _settings_game.construction.freeform_edges ? TILE_SIZE : 0, MapMaxY() * TILE_SIZE)) return -1;
+
+	return (v == end_v) ? 0 : (v == start_v) ? 1 : 2;
 }
 
 /* [direction][side] */
@@ -1017,6 +1067,17 @@ static void DrawTileSelection(const TileInfo *ti)
 	/* No tile selection active? */
 	if ((_thd.drawstyle & HT_DRAG_MASK) == HT_NONE) return;
 
+	if (_thd.drawstyle & HT_LINE) {
+		/* autorail highlighting long line */
+		int side = MatchPartOfAutoLine(ti->x, ti->y);
+		if (side >= 0) {
+			HighLightStyle dir = _thd.drawstyle & HT_DIR_MASK;
+			DrawAutorailSelection(ti, _autorail_type[dir][side & 1]);
+			if (side == 2) DrawAutorailSelection(ti, _autorail_type[dir][1]);
+		}
+		return;
+	}
+
 	if (_thd.diagonal) { // We're drawing a 45 degrees rotated (diagonal) rectangle
 		if (IsInsideRotatedRectangle((int)ti->x, (int)ti->y)) goto draw_inner;
 		return;
@@ -1050,19 +1111,6 @@ draw_inner:
 			HighLightStyle type = _thd.drawstyle & HT_DIR_MASK;
 			assert(type < HT_DIR_END);
 			DrawAutorailSelection(ti, _autorail_type[type][0]);
-		} else if (IsPartOfAutoLine(ti->x, ti->y)) {
-			/* autorail highlighting long line */
-			HighLightStyle dir = _thd.drawstyle & HT_DIR_MASK;
-			uint side;
-
-			if (dir == HT_DIR_X || dir == HT_DIR_Y) {
-				side = 0;
-			} else {
-				TileIndex start = TileVirtXY(_thd.selstart.x, _thd.selstart.y);
-				side = Delta(Delta(TileX(start), TileX(ti->tile)), Delta(TileY(start), TileY(ti->tile)));
-			}
-
-			DrawAutorailSelection(ti, _autorail_type[dir][side]);
 		}
 		return;
 	}
@@ -2370,7 +2418,11 @@ void UpdateTileSelection()
 
 			if (_thd.IsDraggingDiagonal()) {
 				new_diagonal = true;
-			} else {
+			} else if (_thd.select_method & (VPM_RAILDIRS | VPM_SIGNALDIRS)) {
+				ViewportPlaceMethod method = _thd.select_method & ~(VPM_RAILDIRS | VPM_SIGNALDIRS);
+				new_diagonal = (method == VPM_FIX_VERTICAL) || (method == VPM_FIX_HORIZONTAL);
+			}
+			if (!new_diagonal) {
 				if (x1 >= x2) Swap(x1, x2);
 				if (y1 >= y2) Swap(y1, y2);
 			}
@@ -2419,8 +2471,9 @@ void UpdateTileSelection()
 
 						default: NOT_REACHED();
 					}
-					_thd.selstart.x = x1 & ~TILE_UNIT_MASK;
-					_thd.selstart.y = y1 & ~TILE_UNIT_MASK;
+					_thd.selstart.x = _thd.selend.x = x1 & ~TILE_UNIT_MASK;
+					_thd.selstart.y = _thd.selend.y = y1 & ~TILE_UNIT_MASK;
+					_thd.new_num_tracks = 1;
 					break;
 				default:
 					NOT_REACHED();
@@ -2437,7 +2490,8 @@ void UpdateTileSelection()
 			_thd.size.x != _thd.new_size.x || _thd.size.y != _thd.new_size.y ||
 			_thd.outersize.x != _thd.new_outersize.x ||
 			_thd.outersize.y != _thd.new_outersize.y ||
-			_thd.diagonal    != new_diagonal) {
+			_thd.diagonal    != new_diagonal ||
+			_thd.num_tracks  != _thd.new_num_tracks) {
 		/* Clear the old tile selection? */
 		if ((_thd.drawstyle & HT_DRAG_MASK) != HT_NONE) SetSelectionTilesDirty();
 
@@ -2446,6 +2500,7 @@ void UpdateTileSelection()
 		_thd.size = _thd.new_size;
 		_thd.outersize = _thd.new_outersize;
 		_thd.diagonal = new_diagonal;
+		_thd.num_tracks = _thd.new_num_tracks;
 		_thd.dirty = 0xff;
 
 		/* Draw the new tile selection? */
@@ -2685,40 +2740,15 @@ static int CalcHeightdiff(HighLightStyle style, uint distance, TileIndex start_t
 }
 
 static const StringID measure_strings_length[] = {STR_NULL, STR_MEASURE_LENGTH, STR_MEASURE_LENGTH_HEIGHTDIFF};
+static const StringID measure_strings_count_length[] = {STR_NULL, STR_NULL, STR_MEASURE_COUNT_LENGTH, STR_MEASURE_COUNT_LENGTH_HEIGHTDIFF};
 
-/**
- * Check for underflowing the map.
- * @param test  the variable to test for underflowing
- * @param other the other variable to update to keep the line
- * @param mult  the constant to multiply the difference by for \c other
- */
-static void CheckUnderflow(int &test, int &other, int mult)
-{
-	if (test >= 0) return;
-
-	other += mult * test;
-	test = 0;
-}
-
-/**
- * Check for overflowing the map.
- * @param test  the variable to test for overflowing
- * @param other the other variable to update to keep the line
- * @param max   the maximum value for the \c test variable
- * @param mult  the constant to multiply the difference by for \c other
- */
-static void CheckOverflow(int &test, int &other, int max, int mult)
-{
-	if (test <= max) return;
-
-	other += mult * (test - max);
-	test = max;
-}
+static const uint MAX_MULTITRACK_SELECTION_LINES = 8;
 
 /** while dragging */
 static void CalcRaildirsDrawstyle(int x, int y, int method)
 {
 	HighLightStyle b;
+	uint num_tracks = 1;
 
 	int dx = _thd.selstart.x - (_thd.selend.x & ~TILE_UNIT_MASK);
 	int dy = _thd.selstart.y - (_thd.selend.y & ~TILE_UNIT_MASK);
@@ -2728,91 +2758,52 @@ static void CalcRaildirsDrawstyle(int x, int y, int method)
 	if (method & ~(VPM_RAILDIRS | VPM_SIGNALDIRS)) {
 		/* We 'force' a selection direction; first four rail buttons. */
 		method &= ~(VPM_RAILDIRS | VPM_SIGNALDIRS);
-		int raw_dx = _thd.selstart.x - _thd.selend.x;
-		int raw_dy = _thd.selstart.y - _thd.selend.y;
 		switch (method) {
 			case VPM_FIX_X:
 				b = HT_LINE | HT_DIR_Y;
-				x = _thd.selstart.x;
+				num_tracks = w / TILE_SIZE;
 				break;
 
 			case VPM_FIX_Y:
 				b = HT_LINE | HT_DIR_X;
-				y = _thd.selstart.y;
+				num_tracks = h / TILE_SIZE;
 				break;
 
-			case VPM_FIX_HORIZONTAL:
-				if (dx == -dy) {
-					/* We are on a straight horizontal line. Determine the 'rail'
-					 * to build based the sub tile location. */
-					b = (x & TILE_UNIT_MASK) + (y & TILE_UNIT_MASK) >= TILE_SIZE ? HT_LINE | HT_DIR_HL : HT_LINE | HT_DIR_HU;
+			case VPM_FIX_HORIZONTAL: {
+				if (_tile_fract_coords.x + _tile_fract_coords.y >= (int)TILE_SIZE) {
+					b = HT_LINE | HT_DIR_HL;
 				} else {
-					/* We are not on a straight line. Determine the rail to build
-					 * based on whether we are above or below it. */
-					b = dx + dy >= (int)TILE_SIZE ? HT_LINE | HT_DIR_HU : HT_LINE | HT_DIR_HL;
-
-					/* Calculate where a horizontal line through the start point and
-					 * a vertical line from the selected end point intersect and
-					 * use that point as the end point. */
-					int offset = (raw_dx - raw_dy) / 2;
-					x = _thd.selstart.x - (offset & ~TILE_UNIT_MASK);
-					y = _thd.selstart.y + (offset & ~TILE_UNIT_MASK);
-
-					/* 'Build' the last half rail tile if needed */
-					if ((offset & TILE_UNIT_MASK) > (TILE_SIZE / 2)) {
-						if (dx + dy >= (int)TILE_SIZE) {
-							x += (dx + dy < 0) ? (int)TILE_SIZE : -(int)TILE_SIZE;
-						} else {
-							y += (dx + dy < 0) ? (int)TILE_SIZE : -(int)TILE_SIZE;
-						}
-					}
-
-					/* Make sure we do not overflow the map! */
-					CheckUnderflow(x, y, 1);
-					CheckUnderflow(y, x, 1);
-					CheckOverflow(x, y, (MapMaxX() - 1) * TILE_SIZE, 1);
-					CheckOverflow(y, x, (MapMaxY() - 1) * TILE_SIZE, 1);
-					assert(x >= 0 && y >= 0 && x <= (int)(MapMaxX() * TILE_SIZE) && y <= (int)(MapMaxY() * TILE_SIZE));
+					b = HT_LINE | HT_DIR_HU;
 				}
+				int sx = _thd.selstart.x + _tile_fract_coords.x;
+				int sy = _thd.selstart.y + _tile_fract_coords.y;
+				num_tracks = Delta((sx + sy) >> 4, (x + y) >> 4) + 1;
 				break;
+			}
 
-			case VPM_FIX_VERTICAL:
-				if (dx == dy) {
-					/* We are on a straight vertical line. Determine the 'rail'
-					 * to build based the sub tile location. */
-					b = (x & TILE_UNIT_MASK) > (y & TILE_UNIT_MASK) ? HT_LINE | HT_DIR_VL : HT_LINE | HT_DIR_VR;
+			case VPM_FIX_VERTICAL: {
+				if (_tile_fract_coords.x > _tile_fract_coords.y) {
+					b = HT_LINE | HT_DIR_VL;
 				} else {
-					/* We are not on a straight line. Determine the rail to build
-					 * based on whether we are left or right from it. */
-					b = dx < dy ? HT_LINE | HT_DIR_VL : HT_LINE | HT_DIR_VR;
-
-					/* Calculate where a vertical line through the start point and
-					 * a horizontal line from the selected end point intersect and
-					 * use that point as the end point. */
-					int offset = (raw_dx + raw_dy + (int)TILE_SIZE) / 2;
-					x = _thd.selstart.x - (offset & ~TILE_UNIT_MASK);
-					y = _thd.selstart.y - (offset & ~TILE_UNIT_MASK);
-
-					/* 'Build' the last half rail tile if needed */
-					if ((offset & TILE_UNIT_MASK) > (TILE_SIZE / 2)) {
-						if (dx - dy < 0) {
-							y += (dx > dy) ? (int)TILE_SIZE : -(int)TILE_SIZE;
-						} else {
-							x += (dx < dy) ? (int)TILE_SIZE : -(int)TILE_SIZE;
-						}
-					}
-
-					/* Make sure we do not overflow the map! */
-					CheckUnderflow(x, y, -1);
-					CheckUnderflow(y, x, -1);
-					CheckOverflow(x, y, (MapMaxX() - 1) * TILE_SIZE, -1);
-					CheckOverflow(y, x, (MapMaxY() - 1) * TILE_SIZE, -1);
-					assert(x >= 0 && y >= 0 && x <= (int)(MapMaxX() * TILE_SIZE) && y <= (int)(MapMaxY() * TILE_SIZE));
+					b = HT_LINE | HT_DIR_VR;
 				}
+				int sx = _thd.selstart.x + _tile_fract_coords.x;
+				int sy = _thd.selstart.y + _tile_fract_coords.y;
+				num_tracks = Delta((sx - sy) >> 4, (x - y) >> 4) + 1;
 				break;
+			}
 
 			default:
 				NOT_REACHED();
+		}
+		if (num_tracks > MAX_MULTITRACK_SELECTION_LINES) {
+			num_tracks = MAX_MULTITRACK_SELECTION_LINES;
+			TileIndex start = TileVirtXY(_thd.selstart.x, _thd.selstart.y);
+			TileIndex end = TileVirtXY(x, y);
+			Track dir = (Track)(b & HT_DIR_MASK);
+			GetSingleLineFromMultilineTrack(MAX_MULTITRACK_SELECTION_LINES - 1, &dir, &start, &end);
+			x = TileX(end) * TILE_SIZE;
+			y = TileY(end) * TILE_SIZE;
 		}
 	} else if (TileVirtXY(_thd.selstart.x, _thd.selstart.y) == TileVirtXY(x, y)) { // check if we're only within one tile
 		if (method & VPM_RAILDIRS) {
@@ -2904,12 +2895,20 @@ static void CalcRaildirsDrawstyle(int x, int y, int method)
 	if (_settings_client.gui.measure_tooltip) {
 		TileIndex t0 = TileVirtXY(_thd.selstart.x, _thd.selstart.y);
 		TileIndex t1 = TileVirtXY(x, y);
-		uint distance = DistanceManhattan(t0, t1) + 1;
+		int pos0, pos1;
+		switch (b & HT_DIR_MASK) {
+			default: NOT_REACHED();
+			case HT_DIR_X:                  pos0 = TileX(t0),             pos1 = TileX(t1);             break;
+			case HT_DIR_Y:                  pos0 = TileY(t0),             pos1 = TileY(t1);             break;
+			case HT_DIR_HU: case HT_DIR_HL: pos0 = TileX(t0) - TileY(t0), pos1 = TileX(t1) - TileY(t1); break;
+			case HT_DIR_VL: case HT_DIR_VR: pos0 = TileX(t0) + TileY(t0), pos1 = TileX(t1) + TileY(t1); break;
+		}
+		uint distance = Delta(pos0, pos1) + 1;
 		byte index = 0;
-		uint64 params[2];
+		uint64 params[3];
 
-		if (distance != 1) {
-			int heightdiff = CalcHeightdiff(b, distance, t0, t1);
+		if (distance != 1 || num_tracks != 1) {
+			int heightdiff = CalcHeightdiff(b, distance + num_tracks - 1, t0, t1);
 			/* If we are showing a tooltip for horizontal or vertical drags,
 			 * 2 tiles have a length of 1. To bias towards the ceiling we add
 			 * one before division. It feels more natural to count 3 lengths as 2 */
@@ -2917,15 +2916,17 @@ static void CalcRaildirsDrawstyle(int x, int y, int method)
 				distance = CeilDiv(distance, 2);
 			}
 
+			if (num_tracks != 1) params[index++] = num_tracks;
 			params[index++] = distance;
 			if (heightdiff != 0) params[index++] = heightdiff;
 		}
-
-		ShowMeasurementTooltips(measure_strings_length[index], index, params);
+		const StringID *strings = (num_tracks != 1) ? measure_strings_count_length : measure_strings_length;
+		ShowMeasurementTooltips(strings[index], index, params);
 	}
 
 	_thd.selend.x = x;
 	_thd.selend.y = y;
+	_thd.new_num_tracks = num_tracks;
 	_thd.next_drawstyle = b;
 }
 
