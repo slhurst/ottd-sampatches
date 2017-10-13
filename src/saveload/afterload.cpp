@@ -2991,6 +2991,8 @@ bool AfterLoadGame()
 	ResetSignalHandlers();
 
 	AfterLoadLinkGraphs();
+
+	AfterLoadTraceRestrict();
 	return true;
 }
 

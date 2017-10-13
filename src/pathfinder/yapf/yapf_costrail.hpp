@@ -13,6 +13,7 @@
 #define YAPF_COSTRAIL_HPP
 
 #include "../../pbs.h"
+#include "../../tracerestrict.h"
 
 template <class Types>
 class CYapfCostRailT : public CYapfCostBase {
@@ -175,6 +176,106 @@ public:
 		return 0;
 	}
 
+private:
+	// returns true if ExecuteTraceRestrict should be called
+	inline bool ShouldCheckTraceRestrict(Node& n, TileIndex tile)
+	{
+		return n.m_num_signals_passed < m_sig_look_ahead_costs.Size() &&
+				IsRestrictedSignal(tile);
+	}
+
+	/**
+	 * This is called to retrieve the previous signal, as required
+	 * This is not run all the time as it is somewhat expensive and most restrictions will not test for the previous signal
+	 */
+	static TileIndex TraceRestrictPreviousSignalCallback(const Train *v, const void *node_ptr)
+	{
+		const Node *node = static_cast<const Node *>(node_ptr);
+		for (;;) {
+			TileIndex last_signal_tile = node->m_segment->m_last_signal_tile;
+			if (last_signal_tile != INVALID_TILE) {
+				Trackdir last_signal_trackdir = node->m_segment->m_last_signal_td;
+				if (HasPbsSignalOnTrackdir(last_signal_tile, last_signal_trackdir)) {
+					return last_signal_tile;
+				} else {
+					return INVALID_TILE;
+				}
+			}
+
+			if (node->m_parent) {
+				node = node->m_parent;
+			} else {
+				// scan forwards from vehicle position, for the case that train is waiting at/approaching PBS signal
+
+				/*
+				 * TODO: can this be made more efficient?
+				 * This track scan will have been performed upstack, however extracting the entry signal
+				 * during that scan and passing it through to this point would likely require relatively
+				 * invasive changes to the pathfinder code, or at least an extra param on a number of wrapper
+				 * functions between there and here, which would be best avoided.
+				 */
+
+				TileIndex origin_tile = node->GetTile();
+				Trackdir origin_trackdir = node->GetTrackdir();
+
+				TileIndex tile = v->tile;
+				Trackdir  trackdir = v->GetVehicleTrackdir();
+
+				CFollowTrackRail ft(v);
+
+				TileIndex candidate_tile = INVALID_TILE;
+
+				for (;;) {
+					if (IsTileType(tile, MP_RAILWAY) && HasSignalOnTrackdir(tile, trackdir)) {
+						if (HasPbsSignalOnTrackdir(tile, trackdir)) {
+							// found PBS signal
+							candidate_tile = tile;
+						} else {
+							// wrong type of signal
+							candidate_tile = INVALID_TILE;
+						}
+					}
+
+					if (tile == origin_tile && trackdir == origin_trackdir) {
+						// reached pathfinder origin
+						return candidate_tile;
+					}
+
+					// advance to next tile
+					if (!ft.Follow(tile, trackdir)) {
+						// ran out of track
+						return INVALID_TILE;
+					}
+
+					if (KillFirstBit(ft.m_new_td_bits) != TRACKDIR_BIT_NONE) {
+						// reached a junction tile
+						return INVALID_TILE;
+					}
+
+					tile = ft.m_new_tile;
+					trackdir = FindFirstTrackdir(ft.m_new_td_bits);
+				}
+			}
+		}
+		NOT_REACHED();
+	}
+
+	// returns true if dead end bit has been set
+	inline bool ExecuteTraceRestrict(Node& n, TileIndex tile, Trackdir trackdir, int& cost, TraceRestrictProgramResult &out)
+	{
+		const TraceRestrictProgram *prog = GetExistingTraceRestrictProgram(tile, TrackdirToTrack(trackdir));
+		if (prog && prog->actions_used_flags & TRPAUF_PF) {
+			prog->Execute(Yapf().GetVehicle(), TraceRestrictProgramInput(tile, trackdir, &TraceRestrictPreviousSignalCallback, &n), out);
+			if (out.flags & TRPRF_DENY) {
+				n.m_segment->m_end_segment_reason |= ESRB_DEAD_END;
+				return true;
+			}
+			cost += out.penalty;
+		}
+		return false;
+	}
+
+public:
 	int SignalCost(Node &n, TileIndex tile, Trackdir trackdir)
 	{
 		int cost = 0;
@@ -234,6 +335,13 @@ public:
 						}
 					}
 
+					if (ShouldCheckTraceRestrict(n, tile)) {
+						TraceRestrictProgramResult out;
+						if (ExecuteTraceRestrict(n, tile, trackdir, cost, out)) {
+							return -1;
+						}
+					}
+
 					n.m_num_signals_passed++;
 					n.m_segment->m_last_signal_tile = tile;
 					n.m_segment->m_last_signal_td = trackdir;
@@ -241,6 +349,13 @@ public:
 
 				if (has_signal_against && IsPbsSignal(GetSignalType(tile, TrackdirToTrack(trackdir)))) {
 					cost += n.m_num_signals_passed < Yapf().PfGetSettings().rail_look_ahead_max_signals ? Yapf().PfGetSettings().rail_pbs_signal_back_penalty : 0;
+
+					if (ShouldCheckTraceRestrict(n, tile)) {
+						TraceRestrictProgramResult out;
+						if (ExecuteTraceRestrict(n, tile, trackdir, cost, out)) {
+							return -1;
+						}
+					}
 				}
 			}
 		}

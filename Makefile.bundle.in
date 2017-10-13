@@ -45,6 +45,7 @@ bundle: all
 	$(Q)mkdir -p "$(BUNDLE_DIR)/docs"
 	$(Q)mkdir -p "$(BUNDLE_DIR)/media"
 	$(Q)mkdir -p "$(BUNDLE_DIR)/scripts"
+	$(Q)mkdir -p "$(BUNDLE_DIR)/data"
 	$(Q)mkdir -p "$(TTD_DIR)"
 	$(Q)mkdir -p "$(AI_DIR)"
 	$(Q)mkdir -p "$(GAME_DIR)"
@@ -82,6 +83,7 @@ endif
 	$(Q)cp "$(ROOT_DIR)/media/openttd.32.xpm" "$(BUNDLE_DIR)/media/"
 	$(Q)cp "$(ROOT_DIR)/media/openttd."*.png  "$(BUNDLE_DIR)/media/"
 	$(Q)cp "$(BIN_DIR)/scripts/"*             "$(BUNDLE_DIR)/scripts/"
+	$(Q)cp "$(BIN_DIR)/data/"*.grf            "$(BUNDLE_DIR)/data/"
 ifdef MENU_DIR
 	$(Q)cp "$(ROOT_DIR)/media/openttd.desktop" "$(BUNDLE_DIR)/media/"
 	$(Q)$(AWK) -f "$(ROOT_DIR)/media/openttd.desktop.translation.awk" "$(SRC_DIR)/lang/"*.txt | LC_ALL=C $(SORT) |  $(AWK) -f "$(ROOT_DIR)/media/openttd.desktop.filter.awk" >> "$(BUNDLE_DIR)/media/openttd.desktop"
@@ -185,6 +187,7 @@ endif
 	$(Q)install -m 644 "$(BUNDLE_DIR)/ai/"* "$(INSTALL_DATA_DIR)/ai"
 	$(Q)install -m 644 "$(BUNDLE_DIR)/game/"* "$(INSTALL_DATA_DIR)/game"
 	$(Q)install -m 644 "$(BUNDLE_DIR)/baseset/"* "$(INSTALL_DATA_DIR)/baseset"
+	$(Q)install -m 644 "$(BUNDLE_DIR)/data/"* "$(INSTALL_DATA_DIR)/data"
 	$(Q)install -m 644 "$(BUNDLE_DIR)/scripts/"* "$(INSTALL_DATA_DIR)/scripts"
 ifndef DO_NOT_INSTALL_DOCS
 	$(Q)install -d "$(INSTALL_DOC_DIR)"
