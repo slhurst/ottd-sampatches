@@ -5672,7 +5672,7 @@ static void GraphicsNew(ByteReader *buf)
 		LoadNextSprite(replace == 0 ? _cur.spriteid++ : replace++, _cur.file_index, _cur.nfo_line, _cur.grf_container_ver);
 	}
 
-	if (type == 0x04 && (_cur.grffile->is_ottdfile || _cur.grfconfig->ident.grfid == BSWAP32(0xFF4F4701))) {
+	if (type == 0x04 && (HasBit(_cur.grfconfig->flags, GCF_SYSTEM) || _cur.grfconfig->ident.grfid == BSWAP32(0xFF4F4701))) {
 		/* Signal graphics action 5: Fill duplicate signal sprite block if this is a baseset GRF or OpenGFX */
 		const SpriteID end = offset + num;
 		for (SpriteID i = offset; i < end; i++) {
