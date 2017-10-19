@@ -970,6 +970,8 @@ public:
 
 		return v;
 	}
+
+        virtual bool ShouldWarnVehicleIncome() { return false; }
 };
 
 /**

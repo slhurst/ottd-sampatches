@@ -126,6 +126,7 @@ struct Train FINAL : public GroundVehicle<Train, VEH_TRAIN> {
 	Trackdir GetVehicleTrackdir() const;
 	TileIndex GetOrderStationLocation(StationID station);
 	bool FindClosestDepot(TileIndex *location, DestinationID *destination, bool *reverse);
+	inline bool ShouldWarnVehicleIncome() { return _settings_client.gui.train_income_warn; }
 
 	void ReserveTrackUnderConsist() const;
 

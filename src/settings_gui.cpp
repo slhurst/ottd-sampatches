@@ -949,6 +949,9 @@ void SettingEntry::Init(byte level)
 {
 	BaseSettingEntry::Init(level);
 	this->setting = GetSettingFromName(this->name, &this->index);
+        if (this->setting == NULL) {
+            DEBUG(misc, 2, this->name);
+        }
 	assert(this->setting != NULL);
 }
 
@@ -1560,7 +1563,10 @@ static SettingsContainer &GetSettingsTree()
 			advisors->Add(new SettingEntry("news_display.arrival_other"));
 			advisors->Add(new SettingEntry("news_display.advice"));
 			advisors->Add(new SettingEntry("gui.order_review_system"));
-			advisors->Add(new SettingEntry("gui.vehicle_income_warn"));
+			advisors->Add(new SettingEntry("gui.train_income_warn"));
+			advisors->Add(new SettingEntry("gui.roadveh_income_warn"));
+			advisors->Add(new SettingEntry("gui.aircraft_income_warn"));
+			advisors->Add(new SettingEntry("gui.ship_income_warn"));
 			advisors->Add(new SettingEntry("gui.lost_vehicle_warn"));
 			advisors->Add(new SettingEntry("gui.show_finances"));
 			advisors->Add(new SettingEntry("news_display.economy"));

@@ -111,6 +111,7 @@ struct Aircraft FINAL : public SpecializedVehicle<Aircraft, VEH_AIRCRAFT> {
 	uint Crash(bool flooded = false);
 	TileIndex GetOrderStationLocation(StationID station);
 	bool FindClosestDepot(TileIndex *location, DestinationID *destination, bool *reverse);
+        inline bool ShouldWarnVehicleIncome() { return _settings_client.gui.aircraft_income_warn; }
 
 	/**
 	 * Check if the aircraft type is a normal flying device; eg

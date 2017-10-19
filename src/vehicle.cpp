@@ -2696,7 +2696,7 @@ void VehiclesYearlyLoop()
 			/* show warning if vehicle is not generating enough income last 2 years (corresponds to a red icon in the vehicle list) */
 			Money profit = v->GetDisplayProfitThisYear();
 			if (v->age >= 730 && profit < 0) {
-				if (_settings_client.gui.vehicle_income_warn && v->owner == _local_company) {
+				if (v->ShouldWarnVehicleIncome() && v->owner == _local_company) {
 					SetDParam(0, v->index);
 					SetDParam(1, profit);
 					AddVehicleAdviceNewsItem(STR_NEWS_VEHICLE_IS_UNPROFITABLE, v->index);
