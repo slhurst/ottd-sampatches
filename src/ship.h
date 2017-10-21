@@ -46,6 +46,7 @@ struct Ship FINAL : public SpecializedVehicle<Ship, VEH_SHIP> {
 	TileIndex GetOrderStationLocation(StationID station);
 	bool FindClosestDepot(TileIndex *location, DestinationID *destination, bool *reverse);
 	void UpdateCache();
+        inline bool ShouldWarnVehicleIncome() { return _settings_client.gui.ship_income_warn; }
 };
 
 /**

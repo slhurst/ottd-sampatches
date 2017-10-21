@@ -120,6 +120,7 @@ struct RoadVehicle FINAL : public GroundVehicle<RoadVehicle, VEH_ROAD> {
 	Trackdir GetVehicleTrackdir() const;
 	TileIndex GetOrderStationLocation(StationID station);
 	bool FindClosestDepot(TileIndex *location, DestinationID *destination, bool *reverse);
+	inline bool ShouldWarnVehicleIncome() { return _settings_client.gui.roadveh_income_warn; }
 
 	bool IsBus() const;
 
