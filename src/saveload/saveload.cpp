@@ -267,9 +267,10 @@
  *  206   After **
  *  207   Broken
  *  208   Working as of 16/10/17
+ *  2000  Bump to avoid clashes
  */
 
-extern const uint16 SAVEGAME_VERSION = 208; ///< Current savegame version of OpenTTD.
+extern const uint16 SAVEGAME_VERSION = 2000; ///< Current savegame version of OpenTTD.
 
 SavegameType _savegame_type; ///< type of savegame we are loading
 FileToSaveLoad _file_to_saveload; ///< File to save or load in the openttd loop.
